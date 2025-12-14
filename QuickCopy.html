@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickCopy</title>
+    <meta name="description" content="Prepare your code for AI contexts with token estimation and file management.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* --- Palette: Zinc & Crisp White --- */
+            --bg-body: #F9FAFB;
+            --bg-card: #ffffff;
+            --bg-input: #F3F4F6;
+            
+            --border-light: #E5E7EB;
+            --border-hover: #D1D5DB;
+            
+            --text-primary: #111827; /* Near Black */
+            --text-secondary: #6B7280; /* Cool Grey */
+            --text-tertiary: #9CA3AF;
+            
+            --accent-primary: #111827; 
+            --accent-hover: #000000;
+            
+            --danger-color: #EF4444;
+            --warning-color: #F59E0B;
+            --success-color: #10B981;
+
+            /* --- Polish Variables --- */
+            --radius-xl: 24px;
+            --radius-lg: 12px;
+            --radius-md: 6px;
+            
+            --shadow-card: 
+                0 4px 6px -1px rgba(0, 0, 0, 0.05), 
+                0 10px 15px -3px rgba(0, 0, 0, 0.03),
+                0 0 0 1px rgba(0,0,0,0.02);
+        }
+
+        /* Reset & Base */
+        * { box-sizing: border-box; outline: none; }
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Subtle Background Grid Pattern */
+        body {
+            background-image: radial-gradient(var(--border-hover) 1px, transparent 1px);
+            background-size: 24px 24px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 6vh;
+            overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            padding: 0 20px 80px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* --- Header --- */
+        header {
+            text-align: center;
+            margin-bottom: 8px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            margin: 0 0 6px 0;
+            color: var(--text-primary);
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* --- Main Card --- */
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-card);
+            padding: 8px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: slideUp 0.5s ease-out forwards;
+        }
+
+        /* --- Drop Zone --- */
+        #drop-zone {
+            background-color: var(--bg-body);
+            border: 1px dashed var(--border-hover);
+            border-radius: 18px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+        }
+
+        #drop-zone:hover {
+            background-color: #F3F4F6;
+            border-color: var(--text-tertiary);
+        }
+
+        #drop-zone.drag-over {
+            background-color: #EFF6FF;
+            border-color: #3B82F6;
+            border-style: solid;
+            transform: scale(0.99);
+        }
+
+        .icon-container {
+            width: 42px;
+            height: 42px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px auto;
+            color: var(--text-primary);
+        }
+
+        .drop-title {
+            font-weight: 500;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .drop-hint {
+            font-size: 0.85rem;
+            color: var(--text-tertiary);
+        }
+
+        #file-input { display: none; }
+
+        .browse-trigger {
+            color: var(--text-primary);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .browse-trigger:hover { color: #000; }
+
+        /* --- Tools Row (Clear All) --- */
+        .tools-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 4px 0 4px;
+            min-height: 30px;
+        }
+
+        .tools-row:has(.file-count:empty) {
+            display: none;
+        }
+        
+        .file-count {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+
+        .clear-btn {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: none; /* Hidden by default */
+        }
+        .clear-btn:hover { background-color: #FEE2E2; color: var(--danger-color); }
+        .clear-btn.visible { display: inline-block; }
+
+        /* --- File List (Tags) --- */
+        #file-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: center;
+        }
+
+        #file-list li {
+            background: white;
+            border: 1px solid var(--border-light);
+            padding: 4px 8px 4px 10px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            max-width: 100%;
+        }
+
+        #file-list li.error {
+            border-color: #FECACA;
+            background-color: #FEF2F2;
+            color: var(--danger-color);
+        }
+
+        #file-list:empty {
+            display: none;
+        }
+
+        .file-remove {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            color: var(--text-tertiary);
+            transition: all 0.2s;
+        }
+        .file-remove:hover {
+            background-color: var(--border-light);
+            color: var(--text-primary);
+        }
+        #file-list li.error .file-remove:hover {
+            background-color: #FECACA;
+            color: var(--danger-color);
+        }
+
+        /* --- Output Area --- */
+        .output-wrapper {
+            margin-top: 10px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s ease;
+            pointer-events: none;
+        }
+        .output-wrapper.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 4px 12px 4px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 12px; }
+
+        h2 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* Token Badge */
+        .token-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background-color: var(--bg-input);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-light);
+            font-family: 'Inter', sans-serif;
+            transition: color 0.3s, border-color 0.3s;
+        }
+        .token-badge.warning { color: var(--warning-color); border-color: #FCD34D; background-color: #FFFBEB; }
+        .token-badge.danger { color: var(--danger-color); border-color: #FECACA; background-color: #FEF2F2; }
+
+        #output {
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 400px;
+            overflow-y: auto;
+            box-shadow: var(--shadow-card);
+        }
+
+        #output::-webkit-scrollbar { width: 8px; }
+        #output::-webkit-scrollbar-track { background: transparent; }
+        #output::-webkit-scrollbar-thumb {
+            background-color: var(--border-light);
+            border-radius: 4px;
+            border: 3px solid var(--bg-card);
+        }
+
+        /* --- Action Button --- */
+        #copy-btn {
+            background-color: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #copy-btn:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+        #copy-btn:active { transform: translateY(0); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+        @media (max-width: 600px) {
+            .container { padding: 20px; }
+            #drop-zone { padding: 30px 15px; }
+            .header-left { flex-direction: column; align-items: flex-start; gap: 4px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>QuickCopy</h1>
+            <div class="subtitle">Context generator for LLMs. Drag, drop, copy.</div>
+        </header>
+        
+        <div class="card">
+            <div id="drop-zone">
+                <div class="icon-container">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                </div>
+                <div class="drop-title">Drop files here</div>
+                <div class="drop-hint">
+                    or <span class="browse-trigger">browse</span>
+                </div>
+                <input type="file" id="file-input" multiple>
+            </div>
+            
+            <div class="tools-row">
+                <span class="file-count" id="file-count-label"></span>
+                <button class="clear-btn" id="clear-btn">Clear All</button>
+            </div>
+
+            <ul id="file-list"></ul>
+        </div>
+        
+        <div class="output-wrapper" id="output-wrapper">
+            <div class="output-header">
+                <div class="header-left">
+                    <h2>Generated Context</h2>
+                    <span id="token-badge" class="token-badge">0 tokens</span>
+                </div>
+                <button id="copy-btn">Copy Content</button>
+            </div>
+            <pre id="output"></pre>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const MAX_FILE_SIZE_MB = 1.0; 
+        const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+        
+        // --- Expanded File Map ---
+        const fileExtensionMap = {
+            // Web
+            '.js': 'javascript', '.jsx': 'jsx', '.ts': 'typescript', '.tsx': 'tsx',
+            '.html': 'html', '.css': 'css', '.scss': 'scss', '.less': 'less', '.sass': 'sass',
+            '.vue': 'vue', '.svelte': 'svelte', '.json': 'json', '.xml': 'xml', '.svg': 'xml',
+            // Backend / Systems
+            '.py': 'python', '.java': 'java', '.cpp': 'cpp', '.c': 'c', '.h': 'c',
+            '.cs': 'csharp', '.php': 'php', '.rb': 'ruby', '.go': 'go', '.rs': 'rust',
+            '.kt': 'kotlin', '.swift': 'swift', '.pl': 'perl', '.lua': 'lua', '.r': 'r',
+            '.ex': 'elixir', '.exs': 'elixir', '.sh': 'bash', '.bat': 'batch', '.ps1': 'powershell',
+            // Data / Config
+            '.sql': 'sql', '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'toml', '.ini': 'ini',
+            '.env': 'bash', '.dockerfile': 'dockerfile', '.md': 'markdown', '.txt': 'text',
+            '.conf': 'properties', '.gradle': 'groovy', '.makefile': 'makefile', '.prql': 'sql',
+            '.prisma': 'prisma', '.graphql': 'graphql', '.tex': 'latex',
+            // Game Dev
+            '.gd': 'gdscript', '.tscn': 'xml', '.tres': 'gdscript', '.shader': 'glsl'
+        };
+
+        const binaryExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.exe', '.bin', '.dat'];
+
+        // --- State ---
+        let processedFiles = []; // Array of objects: { name, content, type, size, error }
+
+        // --- Elements ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const output = document.getElementById('output');
+        const outputWrapper = document.getElementById('output-wrapper');
+        const copyBtn = document.getElementById('copy-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const tokenBadge = document.getElementById('token-badge');
+        const fileCountLabel = document.getElementById('file-count-label');
+        const browseTrigger = document.querySelector('.browse-trigger');
+
+        // --- Core Logic ---
+
+        function getFileType(fileName) {
+            const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+            return fileExtensionMap[extension] || 'text';
+        }
+
+        function isBinary(fileName) {
+            const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+            return binaryExtensions.includes(extension);
+        }
+
+        async function handleFiles(files) {
+            const newFiles = Array.from(files);
+            
+            for (const file of newFiles) {
+                // Check if file already exists in list to prevent duplicates
+                if (processedFiles.some(f => f.name === file.name)) continue;
+
+                let fileData = {
+                    name: file.name,
+                    size: file.size,
+                    type: getFileType(file.name),
+                    content: null,
+                    error: null
+                };
+
+                // Safety Checks
+                if (file.size > MAX_FILE_SIZE_BYTES) {
+                    fileData.error = "Too large (>1MB)";
+                } else if (isBinary(file.name)) {
+                    fileData.error = "Binary file";
+                } else {
+                    try {
+                        fileData.content = await file.text();
+                    } catch (e) {
+                        fileData.error = "Read error";
+                    }
+                }
+                
+                processedFiles.push(fileData);
+            }
+
+            renderUI();
+        }
+
+        function removeFile(index) {
+            processedFiles.splice(index, 1);
+            renderUI();
+        }
+
+        function clearAll() {
+            processedFiles = [];
+            renderUI();
+            // Reset file input value so the same file can be selected again if needed
+            fileInput.value = ''; 
+        }
+
+        function calculateTokens(text) {
+            // Rough estimation: 1 token ~= 4 characters for English code/text
+            return Math.ceil(text.length / 4);
+        }
+
+        function renderUI() {
+            // 1. Update File List
+            fileList.innerHTML = '';
+            processedFiles.forEach((file, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${file.name}</span>
+                    <span class="file-remove" onclick="removeFile(${index})" title="Remove">
+                        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+                    </span>
+                `;
+                if (file.error) {
+                    li.classList.add('error');
+                    li.title = file.error; // Tooltip
+                }
+                fileList.appendChild(li);
+            });
+
+            // 2. Update Tools Row
+            if (processedFiles.length > 0) {
+                clearBtn.classList.add('visible');
+                fileCountLabel.textContent = `${processedFiles.length} file${processedFiles.length !== 1 ? 's' : ''}`;
+            } else {
+                clearBtn.classList.remove('visible');
+                fileCountLabel.textContent = '';
+                outputWrapper.classList.remove('visible');
+                return; // Stop here if empty
+            }
+
+            // 3. Generate Output
+            const validFiles = processedFiles.filter(f => !f.error);
+            
+            // Part A: Context Map (Table of Contents)
+            let finalOutput = "--- CONTEXT MAP ---\n";
+            validFiles.forEach((f, i) => {
+                finalOutput += `${i + 1}. ${f.name}\n`;
+            });
+            finalOutput += "-------------------\n\n";
+
+            // Part B: File Content
+            validFiles.forEach(f => {
+                finalOutput += `--- ${f.name} ---\n\`\`\`${f.type}\n${f.content.trim()}\n\`\`\`\n\n`;
+            });
+
+            // 4. Update Token Count
+            const tokenCount = calculateTokens(finalOutput);
+            tokenBadge.textContent = `~${tokenCount.toLocaleString()} tokens`;
+            
+            // Token Color Logic
+            tokenBadge.className = 'token-badge'; // reset
+            if (tokenCount > 32000) tokenBadge.classList.add('danger');
+            else if (tokenCount > 16000) tokenBadge.classList.add('warning');
+
+            // 5. Render Output Text
+            if (validFiles.length > 0) {
+                output.textContent = finalOutput.trim();
+                outputWrapper.classList.add('visible');
+            } else {
+                outputWrapper.classList.remove('visible');
+            }
+        }
+
+        // --- Event Listeners ---
+
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        clearBtn.addEventListener('click', clearAll);
+
+        browseTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        // Click on drop zone triggers input (unless clicking children)
+        dropZone.addEventListener('click', (e) => {
+            if (e.target === dropZone || e.target.closest('.icon-container') || e.target.classList.contains('drop-title')) {
+                fileInput.click();
+            }
+        });
+
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // Copy Button
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(output.textContent).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = "Copied!";
+                copyBtn.style.backgroundColor = "var(--success-color)";
+                
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = "";
+                }, 2000);
+            });
+        });
+
+    </script>
+</body>
+</html>
